@@ -1,20 +1,20 @@
 (()=>{'use strict';
-const KEY='mdj-apple-albums-v2',TTL=30*864e5;
-let cache={};try{cache=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch{}
-const normalize=s=>String(s||'').normalize('NFKD').toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,' ').trim();
-const lookup=new Map(all.map(a=>[a.id,a]));
-const waiting=new Set(),queue=[];let working=false;
-const fallback=a=>'https://music.apple.com/de/search?term='+encodeURIComponent(a.artist+' '+a.title);
-function persist(){try{localStorage.setItem(KEY,JSON.stringify(cache))}catch{}}
-function update(card,a){const link=card.querySelector('.apple-album-link a');if(link){link.href=cache[a.id]?.url||fallback(a);link.textContent=cache[a.id]?.url?'♫ Listen on Apple Music ↗':'♫ Find on Apple Music ↗';link.setAttribute('aria-label','Open '+a.title+' by '+a.artist+' on Apple Music')}
-const cover=card.querySelector('.cover');const url=cache[a.id]?.art;if(!cover||!url)return;
-if(cover.dataset.artUrl===url)return;cover.dataset.artUrl=url;const img=document.createElement('img');img.src=url;img.alt=a.title+' album cover';img.loading='lazy';img.decoding='async';img.style.cssText='width:100%;height:100%;object-fit:cover;display:block;border-radius:7px';img.onerror=()=>{img.remove();cover.dataset.artUrl='';cover.textContent=a.artist[0]};cover.textContent='';cover.append(img)}
-function decorate(){document.querySelectorAll('#albums .album[data-album-id]').forEach(card=>{const a=lookup.get(card.dataset.albumId);if(!a)return;update(card,a);if(!cache[a.id]||Date.now()-cache[a.id].at>TTL)enqueue(a)})}
-function enqueue(a){if(waiting.has(a.id))return;waiting.add(a.id);queue.push(a);pump()}
-function jsonp(url){return new Promise((resolve,reject)=>{const cb='mdjAppleCb'+Math.random().toString(36).slice(2),script=document.createElement('script');let finished=false;const cleanup=()=>{delete window[cb];script.remove();clearTimeout(timer)};window[cb]=data=>{if(finished)return;finished=true;cleanup();resolve(data)};script.onerror=()=>{if(finished)return;finished=true;cleanup();reject(Error('Apple catalog unavailable'))};const timer=setTimeout(()=>{if(finished)return;finished=true;cleanup();reject(Error('Apple catalog timed out'))},10000);script.src=url+'&callback='+cb;document.head.append(script)})}
-async function query(a){const url='https://itunes.apple.com/search?'+new URLSearchParams({term:a.artist+' '+a.title,entity:'album',media:'music',country:'DE',limit:'50'});return jsonp(url)}
-function choose(results,a){const artist=normalize(a.artist),title=normalize(a.title);return (results||[]).filter(x=>x.collectionType==='Album'&&normalize(x.artistName)===artist).map(x=>({x,name:normalize(x.collectionName)})).sort((a,b)=>Number(b.name===title)-Number(a.name===title)).find(x=>x.name===title||x.name.startsWith(title+' ')||x.name.startsWith(title+' deluxe'))?.x}
-async function pump(){if(working)return;working=true;while(queue.length){const a=queue.shift();try{const data=await query(a);const m=choose(data.results,a);cache[a.id]={at:Date.now(),...(m?{url:m.collectionViewUrl,art:(m.artworkUrl100||'').replace(/\d+x\d+bb/,'600x600bb')}: {})};persist();document.querySelectorAll('#albums .album[data-album-id="'+a.id+'"]').forEach(card=>update(card,a))}catch(e){/* Retry on next visit; keep fallback link visible. */}await new Promise(resolve=>setTimeout(resolve,350))}working=false}
+/* Curated album IDs, one per album. Null = not yet verified; never claim a search link is a direct link. */
+const IDS={
+'1-0':'1668208303','1-1':'722298531','1-2':null,'1-3':'1775750316','1-4':'1650821309','1-5':'1526437437','1-6':'1449805020','1-7':'1676982778',
+'2-0':'426866917','2-1':'371544953','2-2':'587434599','2-3':null,'2-4':'982941628','2-5':'892636929','2-6':'1668300334','2-7':'1494920837','2-8':'591272996','2-9':'1056774365',
+'3-0':'1589286784','3-1':'1505807672','3-2':'1179774934','3-3':'1727791959','3-4':'859666524','3-5':'967126225','3-6':'1074055704','3-7':'1658830849'};
+const COUNTRY={ '2-8':'ph' };
+const CACHE='mdj-apple-artwork-v3';let artwork={};try{artwork=JSON.parse(localStorage.getItem(CACHE)||'{}')||{}}catch{}
+const albumById=new Map(all.map(a=>[a.id,a]));const requests=new Set();const queue=[];let busy=false;
+function albumUrl(a){const id=IDS[a.id];return id?'https://music.apple.com/'+(COUNTRY[a.id]||'us')+'/album/id'+id:'https://music.apple.com/de/search?term='+encodeURIComponent(a.artist+' '+a.title)}
+function paint(card){const a=albumById.get(card.dataset.albumId);if(!a)return;const link=card.querySelector('.apple-album-link a');if(link){link.href=albumUrl(a);link.textContent=IDS[a.id]?'♫ Open album in Apple Music ↗':'♫ Search Apple Music ↗';link.target='_blank';link.rel='noopener noreferrer';link.setAttribute('aria-label',(IDS[a.id]?'Open album ':'Search for album ')+a.title+' by '+a.artist)}
+const cover=card.querySelector('.cover');const url=artwork[a.id];if(!cover||!url||cover.dataset.artUrl===url)return;cover.dataset.artUrl=url;const img=document.createElement('img');img.src=url;img.alt='Cover: '+a.title;img.loading='lazy';img.decoding='async';img.style.cssText='display:block;width:100%;height:100%;object-fit:cover;border-radius:7px';img.onerror=()=>{img.remove();cover.dataset.artUrl='';cover.textContent=a.artist[0]};cover.textContent='';cover.append(img)}
+function refresh(){document.querySelectorAll('#albums .album[data-album-id]').forEach(paint)}
+function jsonp(url){return new Promise((resolve,reject)=>{const name='mdjArt'+Math.random().toString(36).slice(2);const script=document.createElement('script');let done=false;const finish=(error,data)=>{if(done)return;done=true;clearTimeout(timeout);script.remove();delete window[name];error?reject(error):resolve(data)};window[name]=data=>finish(null,data);script.onerror=()=>finish(Error('Catalog unavailable'));const timeout=setTimeout(()=>finish(Error('Catalog timeout')),10000);script.src=url+(url.includes('?')?'&':'?')+'callback='+name;document.head.append(script)})}
+function add(a){if(!IDS[a.id]||artwork[a.id]||requests.has(a.id))return;requests.add(a.id);queue.push(a);run()}
+async function run(){if(busy)return;busy=true;while(queue.length){const a=queue.shift();try{const url='https://itunes.apple.com/lookup?id='+IDS[a.id]+'&country='+(COUNTRY[a.id]||'us')+'&entity=album';const result=await jsonp(url);const m=(result.results||[]).find(x=>String(x.collectionId)===IDS[a.id]);if(m&&m.artworkUrl100){artwork[a.id]=m.artworkUrl100.replace(/\d+x\d+bb/,'600x600bb');try{localStorage.setItem(CACHE,JSON.stringify(artwork))}catch{}refresh()}}catch(e){/* Keep the cover placeholder; direct link remains functional. */}await new Promise(r=>setTimeout(r,180))}busy=false}
 const style=document.createElement('style');style.textContent='.album .cover{overflow:hidden}.apple-album-link{margin-top:7px}.apple-album-link a{color:#d5b68b;text-decoration:none;font-size:12px;display:inline-block;padding:4px 0}.apple-album-link a:hover{text-decoration:underline}';document.head.append(style);
-const target=document.getElementById('albums');if(target){new MutationObserver(decorate).observe(target,{childList:true});decorate()}
+const target=document.getElementById('albums');if(target){new MutationObserver(refresh).observe(target,{childList:true});refresh()}
+all.forEach(add);
 })();
