@@ -1,12 +1,12 @@
 (()=>{'use strict';
 /* Curated album IDs, one per album. Null = not yet verified; never claim a search link is a direct link. */
 const IDS={
-'1-0':'1668208303','1-1':'722298531','1-2':null,'1-3':'1775750316','1-4':'1650821309','1-5':'1526437437','1-6':'1449805020','1-7':'1676982778',
+'1-0':'1668208303','1-1':'722298531','1-2':'1459437250','1-3':'1775750316','1-4':'1650821309','1-5':'1526437437','1-6':'1449805020','1-7':'1676982778',
 '2-0':'426866917','2-1':'371544953','2-2':'587434599','2-3':null,'2-4':'982941628','2-5':'892636929','2-6':'1668300334','2-7':'1494920837','2-8':'591272996','2-9':'1056774365',
 '3-0':'1589286784','3-1':'1505807672','3-2':'1179774934','3-3':'1727791959','3-4':'859666524','3-5':'967126225','3-6':'1074055704','3-7':'1658830849'};
 const COUNTRY={ '2-8':'ph' };
 /* Verified songs on the requested original albums; lookup resolves their collection IDs. */
-const TRACKS={'1-2':'1383130600','2-3':'1246710870'};
+const TRACKS={'2-3':'1246710870'};
 const RESOLVED='mdj-resolved-albums-v1';let resolved={};try{resolved=JSON.parse(localStorage.getItem(RESOLVED)||'{}')||{}}catch{}
 const CACHE='mdj-apple-artwork-v3';let artwork={};try{artwork=JSON.parse(localStorage.getItem(CACHE)||'{}')||{}}catch{}
 const albumById=new Map(all.map(a=>[a.id,a]));const requests=new Set();const queue=[];let busy=false;
